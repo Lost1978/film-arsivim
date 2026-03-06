@@ -6,25 +6,37 @@ import random
 # Sayfa Ayarları
 st.set_page_config(page_title="Emre'nin Film Arşivi", page_icon="🎬", layout="centered")
 
-# --- ÖZEL TASARIM (CSS) ---
+# --- KÖŞELERİ DÜZENLENMİŞ TASARIM (CSS) ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
+    
+    /* Film Kartı */
     .film-card {
         background: #111111;
         border: 1px solid #222;
-        border-radius: 12px;
+        border-radius: 12px 12px 0px 0px; /* Üst köşeler yuvarlak, alt düz */
         padding: 15px;
-        margin-bottom: 5px;
+        margin-bottom: 0px;
     }
+    
+    /* İzlendi Butonunun Dış Kutusu */
+    .stCheckbox { 
+        background: #1a1a1a; 
+        padding: 8px 15px; 
+        border-radius: 0px 0px 12px 12px; /* Alt köşeler film kartıyla aynı (12px) */
+        border: 1px solid #333;
+        border-top: none; /* Üstteki kartla birleşmesi için çizgiyi kaldırdık */
+        margin-bottom: 15px;
+    }
+
     .film-title { font-size: 1.1rem; font-weight: bold; color: #ffffff; }
     .age-badge {
         background: #ff0000; color: white; padding: 2px 6px;
         border-radius: 4px; font-size: 0.7rem; float: right;
     }
-    .stCheckbox { background: #1a1a1a; padding: 5px; border-radius: 5px; border: 1px solid #333; }
     [data-testid="stSidebar"] { background-color: #000000; border-right: 1px solid #222; }
-    .stButton>button { background: #ffffff; color: #000; font-weight: bold; width: 100%; }
+    .stButton>button { background: #ffffff; color: #000; font-weight: bold; width: 100%; border-radius: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -60,9 +72,8 @@ if menu == "🎥 Film Kaydet":
                 st.success("Kaydedildi!")
                 st.rerun()
 
-# --- 2. KOLEKSİYON & ÖNERİ (FİLTRELER GERİ GELDİ) ---
+# --- 2. KOLEKSİYON & ÖNERİ ---
 elif menu == "📋 Koleksiyon & Öneri":
-    # FİLTRELEME ALANI
     with st.expander("🔍 Filtreleme Seçenekleri", expanded=False):
         f_col1, f_col2 = st.columns(2)
         secilen_tur = f_col1.multiselect("Tür Seç", options=df["Tür"].unique() if not df.empty else [])
@@ -70,7 +81,6 @@ elif menu == "📋 Koleksiyon & Öneri":
         secilen_hassas = st.radio("İçerik", ["Hepsi", "Temiz", "18+"], horizontal=True)
         secilen_izlendi = st.radio("Durum", ["Hepsi", "İzlenmeyenler", "İzlenenler"], horizontal=True)
 
-    # Filtre Uygulama
     filtered_df = df.copy()
     if secilen_tur:
         filtered_df = filtered_df[filtered_df["Tür"].isin(secilen_tur)]
@@ -82,21 +92,21 @@ elif menu == "📋 Koleksiyon & Öneri":
     if secilen_izlendi == "İzlenmeyenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Hayır"]
     elif secilen_izlendi == "İzlenenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Evet"]
 
-    # ÖNERİ BUTONU
     if st.button("🎲 BANA BİR FİLM ÖNER"):
         izlenmemisler = filtered_df[filtered_df["İzlendi"] == "Hayır"]
         if not izlenmemisler.empty:
             f = izlenmemisler.sample(n=1).iloc[0]
             st.info(f"Önerim: {f['İsim']} ({f['Yıl']})")
-        else: st.warning("Seçilen filtrelere uygun izlenmemiş film yok.")
+        else: st.warning("Filtrelere uygun izlenmemiş film yok.")
 
     st.markdown(f"**{len(filtered_df)} Film Listeleniyor**")
 
-    # LİSTELEME
     for i, row in filtered_df.iterrows():
         with st.container():
             badge = '<span class="age-badge">18+</span>' if row['Hassas_Icerik'] == "Evet" else ""
+            # Üst Kısım
             st.markdown(f'<div class="film-card">{badge}<div class="film-title">🎬 {row["İsim"]} ({row["Yıl"]})</div><div style="color:#888; font-size:0.85rem;">{row["Tür"]} | {row["Bilgi"]}</div></div>', unsafe_allow_html=True)
+            # Alt Kısım (Köşeleri düzeltilen checkbox kutusu)
             check = st.checkbox("İzlendi", value=(row["İzlendi"] == "Evet"), key=f"c_{i}")
             if check != (row["İzlendi"] == "Evet"):
                 df.at[i, "İzlendi"] = "Evet" if check else "Hayır"
@@ -124,15 +134,14 @@ elif menu == "✍️ Kayıtları Düzenle":
             if st.form_submit_button("Güncelle"):
                 if silme_onayi:
                     df = df.drop(film_index)
-                    st.warning("Silindi.")
                 else:
                     df.at[film_index, "İsim"] = yeni_isim
                     df.at[film_index, "Yıl"] = yeni_yil
                     df.at[film_index, "Tür"] = yeni_tur
                     df.at[film_index, "Bilgi"] = yeni_bilgi
                     df.at[film_index, "Hassas_Icerik"] = "Evet" if yeni_hassas else "Hayır"
-                    st.success("Güncellendi!")
                 save_data(df)
+                st.success("İşlem Başarılı!")
                 st.rerun()
 
 # --- 4. HIZLI SORGU ---
