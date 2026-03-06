@@ -6,7 +6,7 @@ import random
 # Sayfa Ayarları
 st.set_page_config(page_title="Emre'nin Film Arşivi", page_icon="🎬", layout="centered")
 
-# --- TASARIM GÜNCELLEMESİ (Puan Yıldızı İçin) ---
+# --- TASARIM (CSS) ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
@@ -17,12 +17,7 @@ st.markdown("""
         padding: 15px;
         margin-bottom: 8px;
     }
-    .puan-text {
-        color: #ffca28; /* Yıldız sarısı */
-        font-weight: bold;
-        font-size: 0.9rem;
-        margin-top: 5px;
-    }
+    .puan-text { color: #ffca28; font-weight: bold; font-size: 0.9rem; margin-top: 5px; }
     .age-badge {
         background: #ff0000; color: white; padding: 2px 6px;
         border-radius: 4px; font-size: 0.7rem; float: right;
@@ -37,12 +32,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- VERİ YÖNETİMİ ---
+TUR_LISTESI = ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel", "Animasyon", "Gerilim", "Macera", "Fantastik", "Biyografi"]
+
 def load_data():
     if os.path.exists("filmler.csv"):
         df = pd.read_csv("filmler.csv")
-        # Eğer eski dosyada Puan sütunu yoksa otomatik ekle
-        if "Puan" not in df.columns:
-            df["Puan"] = 0.0
+        if "Puan" not in df.columns: df["Puan"] = 0.0
         return df
     return pd.DataFrame(columns=["İsim", "Yıl", "Tür", "Bilgi", "İzlendi", "Hassas_Icerik", "Puan"])
 
@@ -52,8 +47,7 @@ def save_data(df):
 df = load_data()
 
 # --- ŞİFRE KONTROLÜ ---
-if 'auth' not in st.session_state:
-    st.session_state['auth'] = False
+if 'auth' not in st.session_state: st.session_state['auth'] = False
 
 def check_password():
     if st.session_state['auth']: return True
@@ -81,12 +75,17 @@ if menu == "🔍 İçerik Ara":
 elif menu == "📋 Koleksiyon & Öneri":
     with st.expander("🔍 Filtreleme Seçenekleri"):
         f_col1, f_col2 = st.columns(2)
-        secilen_tur = f_col1.multiselect("Tür", options=df["Tür"].unique() if not df.empty else [])
+        # Filtreleme kısmında da çoklu tür seçimi
+        secilen_tur = f_col1.multiselect("Tür Seç", options=TUR_LISTESI)
         min_puan = st.slider("Minimum Puan", 0.0, 10.0, 0.0, step=0.5)
         secilen_izlendi = st.radio("Durum", ["Hepsi", "İzlenmeyenler", "İzlenenler"], horizontal=True)
 
     filtered_df = df.copy()
-    if secilen_tur: filtered_df = filtered_df[filtered_df["Tür"].isin(secilen_tur)]
+    
+    # Çoklu tür filtreleme mantığı (Seçilen türlerden biri bile varsa gösterir)
+    if secilen_tur:
+        filtered_df = filtered_df[filtered_df['Tür'].apply(lambda x: any(t in str(x) for t in secilen_tur))]
+    
     filtered_df = filtered_df[filtered_df["Puan"] >= min_puan]
     if secilen_izlendi == "İzlenmeyenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Hayır"]
     elif secilen_izlendi == "İzlenenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Evet"]
@@ -100,13 +99,12 @@ elif menu == "📋 Koleksiyon & Öneri":
     for i, row in filtered_df.iterrows():
         with st.container():
             badge = '<span class="age-badge">18+</span>' if row['Hassas_Icerik'] == "Evet" else ""
-            puan_yildiz = f"⭐ {row['Puan']}/10" if row['Puan'] > 0 else "Henüz Puanlanmadı"
             st.markdown(f'''
                 <div class="film-card">
                     {badge}
                     <div style="font-weight:bold;">🎬 {row["İsim"]} ({row["Yıl"]})</div>
                     <div style="color:#888; font-size:0.85rem;">{row["Tür"]} | {row["Bilgi"]}</div>
-                    <div class="puan-text">{puan_yildiz}</div>
+                    <div class="puan-text">⭐ {row['Puan']}/10</div>
                 </div>
             ''', unsafe_allow_html=True)
             check = st.checkbox("İzlendi", value=(row["İzlendi"] == "Evet"), key=f"c_{i}")
@@ -115,25 +113,31 @@ elif menu == "📋 Koleksiyon & Öneri":
                 save_data(df)
                 st.rerun()
 
-# --- 3. FİLM KAYDET ---
+# --- 3. FİLM KAYDET (ÇOKLU TÜR EKLENDİ) ---
 elif menu == "🎥 Film Kaydet":
     if check_password():
         st.subheader("Yeni Film Ekle")
         with st.form("kayit"):
             isim = st.text_input("Film Adı").strip().title()
+            # MULTISELECT Kullanıyoruz
+            turler = st.multiselect("Türler", options=TUR_LISTESI)
             c1, c2 = st.columns(2)
             yil = c1.number_input("Yıl", 1950, 2030, 2025)
-            tur = c2.selectbox("Tür", ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel", "Animasyon"])
             puan = st.slider("Senin Puanın", 0.0, 10.0, 5.0, step=0.5)
             bilgi = st.text_area("Not")
             hassas = st.checkbox("18+ İçerik")
+            
             if st.form_submit_button("Arşive Ekle"):
-                if isim:
-                    yeni = pd.DataFrame([[isim, yil, tur, bilgi, "Hayır", "Evet" if hassas else "Hayır", puan]], columns=df.columns)
+                if isim and turler:
+                    # Türleri virgülle birleştirip tek bir string olarak kaydediyoruz
+                    tur_str = ", ".join(turler)
+                    yeni = pd.DataFrame([[isim, yil, tur_str, bilgi, "Hayır", "Evet" if hassas else "Hayır", puan]], columns=df.columns)
                     df = pd.concat([df, yeni], ignore_index=True)
                     save_data(df)
-                    st.success("Kaydedildi!")
+                    st.success("Başarıyla eklendi!")
                     st.rerun()
+                elif not turler:
+                    st.error("Lütfen en az bir tür seçin!")
 
 # --- 4. KAYITLARI DÜZENLE ---
 elif menu == "✍️ Kayıtları Düzenle":
@@ -143,15 +147,24 @@ elif menu == "✍️ Kayıtları Düzenle":
             secilen_film = st.selectbox("Film Seç", options=df["İsim"].tolist())
             idx = df[df["İsim"] == secilen_film].index[0]
             f_v = df.iloc[idx]
+            
+            # Mevcut türleri listeye geri çeviriyoruz
+            mevcut_turler = str(f_v["Tür"]).split(", ")
+            
             with st.form("duzenle"):
                 n_isim = st.text_input("Film Adı", value=f_v["İsim"])
-                n_puan = st.slider("Puanı Güncelle", 0.0, 10.0, float(f_v["Puan"]), step=0.5)
+                n_turler = st.multiselect("Türleri Güncelle", options=TUR_LISTESI, default=[t for t in mevcut_turler if t in TUR_LISTESI])
+                n_puan = st.slider("Puan", 0.0, 10.0, float(f_v["Puan"]), step=0.5)
                 n_bilgi = st.text_area("Notlar", value=f_v["Bilgi"])
-                n_izlendi = st.checkbox("İzlendi", value=(f_v["İzlendi"] == "Evet"))
                 sil = st.checkbox("⚠️ SİL")
-                if st.form_submit_button("Kaydet"):
+                
+                if st.form_submit_button("Değişiklikleri Kaydet"):
                     if sil: df = df.drop(idx)
                     else:
-                        df.at[idx, "İsim"], df.at[idx, "Puan"], df.at[idx, "Bilgi"], df.at[idx, "İzlendi"] = n_isim, n_puan, n_bilgi, ("Evet" if n_izlendi else "Hayır")
+                        df.at[idx, "İsim"] = n_isim
+                        df.at[idx, "Tür"] = ", ".join(n_turler)
+                        df.at[idx, "Puan"] = n_puan
+                        df.at[idx, "Bilgi"] = n_bilgi
                     save_data(df)
+                    st.success("Güncellendi!")
                     st.rerun()
