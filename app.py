@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
+import random
 
 # Sayfa Ayarları
 st.set_page_config(page_title="Emre'nin Film Arşivi", page_icon="🎬", layout="centered")
@@ -48,7 +49,7 @@ if menu == "🎥 Film Kaydet":
     with st.form("kayit"):
         isim = st.text_input("Film Adı").strip().title()
         yil = st.number_input("Yıl", 1950, 2030, 2024)
-        tur = st.selectbox("Tür", ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel"])
+        tur = st.selectbox("Tür", ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel", "Animasyon"])
         bilgi = st.text_area("Not")
         hassas = st.checkbox("18+ İçerik")
         if st.form_submit_button("Arşive Ekle"):
@@ -59,17 +60,40 @@ if menu == "🎥 Film Kaydet":
                 st.success("Kaydedildi!")
                 st.rerun()
 
-# --- 2. KOLEKSİYON & ÖNERİ ---
+# --- 2. KOLEKSİYON & ÖNERİ (FİLTRELER GERİ GELDİ) ---
 elif menu == "📋 Koleksiyon & Öneri":
-    st.subheader("Film Arşivim")
-    if st.button("🎲 BANA BİR FİLM ÖNER"):
-        izlenmemis = df[df["İzlendi"] == "Hayır"]
-        if not izlenmemis.empty:
-            f = izlenmemis.sample(n=1).iloc[0]
-            st.info(f"Önerim: {f['İsim']} ({f['Yıl']})")
-        else: st.warning("İzlenmemiş film kalmadı!")
+    # FİLTRELEME ALANI
+    with st.expander("🔍 Filtreleme Seçenekleri", expanded=False):
+        f_col1, f_col2 = st.columns(2)
+        secilen_tur = f_col1.multiselect("Tür Seç", options=df["Tür"].unique() if not df.empty else [])
+        secilen_yil = f_col2.slider("Yıl Aralığı", 1950, 2026, (1950, 2026))
+        secilen_hassas = st.radio("İçerik", ["Hepsi", "Temiz", "18+"], horizontal=True)
+        secilen_izlendi = st.radio("Durum", ["Hepsi", "İzlenmeyenler", "İzlenenler"], horizontal=True)
 
-    for i, row in df.iterrows():
+    # Filtre Uygulama
+    filtered_df = df.copy()
+    if secilen_tur:
+        filtered_df = filtered_df[filtered_df["Tür"].isin(secilen_tur)]
+    filtered_df = filtered_df[(filtered_df["Yıl"] >= secilen_yil[0]) & (filtered_df["Yıl"] <= secilen_yil[1])]
+    
+    if secilen_hassas == "Temiz": filtered_df = filtered_df[filtered_df["Hassas_Icerik"] == "Hayır"]
+    elif secilen_hassas == "18+": filtered_df = filtered_df[filtered_df["Hassas_Icerik"] == "Evet"]
+        
+    if secilen_izlendi == "İzlenmeyenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Hayır"]
+    elif secilen_izlendi == "İzlenenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Evet"]
+
+    # ÖNERİ BUTONU
+    if st.button("🎲 BANA BİR FİLM ÖNER"):
+        izlenmemisler = filtered_df[filtered_df["İzlendi"] == "Hayır"]
+        if not izlenmemisler.empty:
+            f = izlenmemisler.sample(n=1).iloc[0]
+            st.info(f"Önerim: {f['İsim']} ({f['Yıl']})")
+        else: st.warning("Seçilen filtrelere uygun izlenmemiş film yok.")
+
+    st.markdown(f"**{len(filtered_df)} Film Listeleniyor**")
+
+    # LİSTELEME
+    for i, row in filtered_df.iterrows():
         with st.container():
             badge = '<span class="age-badge">18+</span>' if row['Hassas_Icerik'] == "Evet" else ""
             st.markdown(f'<div class="film-card">{badge}<div class="film-title">🎬 {row["İsim"]} ({row["Yıl"]})</div><div style="color:#888; font-size:0.85rem;">{row["Tür"]} | {row["Bilgi"]}</div></div>', unsafe_allow_html=True)
@@ -79,30 +103,28 @@ elif menu == "📋 Koleksiyon & Öneri":
                 save_data(df)
                 st.rerun()
 
-# --- 3. DÜZENLEME MODU (YENİ!) ---
+# --- 3. DÜZENLEME MODU ---
 elif menu == "✍️ Kayıtları Düzenle":
-    st.subheader("Film Bilgilerini Güncelle")
+    st.subheader("Kayıt Güncelle veya Sil")
     if not df.empty:
         film_listesi = df["İsim"].tolist()
         secilen_film = st.selectbox("Düzenlenecek Filmi Seç", options=film_listesi)
-        
-        # Seçilen filmin verilerini getir
         film_index = df[df["İsim"] == secilen_film].index[0]
         film_verisi = df.iloc[film_index]
         
         with st.form("duzenle_form"):
             yeni_isim = st.text_input("Film Adı", value=film_verisi["İsim"])
             yeni_yil = st.number_input("Yıl", 1950, 2030, value=int(film_verisi["Yıl"]))
-            yeni_tur = st.selectbox("Tür", ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel"], index=["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel"].index(film_verisi["Tür"]))
+            yeni_tur = st.selectbox("Tür", ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel", "Animasyon"], 
+                                    index=["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel", "Animasyon"].index(film_verisi["Tür"]))
             yeni_bilgi = st.text_area("Notlar", value=film_verisi["Bilgi"])
             yeni_hassas = st.checkbox("18+ İçerik", value=(film_verisi["Hassas_Icerik"] == "Evet"))
-            
             silme_onayi = st.checkbox("⚠️ BU KAYDI TAMAMEN SİL")
             
-            if st.form_submit_button("Değişiklikleri Kaydet"):
+            if st.form_submit_button("Güncelle"):
                 if silme_onayi:
                     df = df.drop(film_index)
-                    st.warning("Film silindi.")
+                    st.warning("Silindi.")
                 else:
                     df.at[film_index, "İsim"] = yeni_isim
                     df.at[film_index, "Yıl"] = yeni_yil
@@ -112,12 +134,10 @@ elif menu == "✍️ Kayıtları Düzenle":
                     st.success("Güncellendi!")
                 save_data(df)
                 st.rerun()
-    else:
-        st.info("Düzenlenecek film yok.")
 
 # --- 4. HIZLI SORGU ---
 elif menu == "🔍 Hızlı Sorgu":
     ara = st.text_input("Film ara...")
     if ara:
         res = df[df["İsim"].str.contains(ara, na=False, case=False)]
-        st.table(res[["İsim", "Yıl", "Tür", "İzlendi"]])
+        st.dataframe(res[["İsim", "Yıl", "Tür", "İzlendi"]], use_container_width=True)
