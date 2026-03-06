@@ -6,28 +6,27 @@ import random
 # Sayfa Ayarları
 st.set_page_config(page_title="Emre'nin Film Arşivi", page_icon="🎬", layout="centered")
 
-# --- KÖŞELERİ DÜZENLENMİŞ TASARIM (CSS) ---
+# --- KÖŞELERİ AYNI VE BAĞIMSIZ TASARIM (CSS) ---
 st.markdown("""
     <style>
     .stApp { background-color: #000000; color: #ffffff; }
     
-    /* Film Kartı */
+    /* Film Kartı - 4 Köşesi de Yuvarlak */
     .film-card {
         background: #111111;
         border: 1px solid #222;
-        border-radius: 12px 12px 0px 0px; /* Üst köşeler yuvarlak, alt düz */
+        border-radius: 12px; /* Tüm köşeler 12px */
         padding: 15px;
-        margin-bottom: 0px;
+        margin-bottom: 8px; /* Alt kutuyla aradaki boşluk */
     }
     
-    /* İzlendi Butonunun Dış Kutusu */
+    /* İzlendi Butonunun Dış Kutusu - 4 Köşesi de Yuvarlak */
     .stCheckbox { 
         background: #1a1a1a; 
         padding: 8px 15px; 
-        border-radius: 0px 0px 12px 12px; /* Alt köşeler film kartıyla aynı (12px) */
+        border-radius: 12px; /* Film kartıyla aynı köşe yapısı */
         border: 1px solid #333;
-        border-top: none; /* Üstteki kartla birleşmesi için çizgiyi kaldırdık */
-        margin-bottom: 15px;
+        margin-bottom: 20px; /* Diğer filmle aradaki mesafe */
     }
 
     .film-title { font-size: 1.1rem; font-weight: bold; color: #ffffff; }
@@ -104,9 +103,9 @@ elif menu == "📋 Koleksiyon & Öneri":
     for i, row in filtered_df.iterrows():
         with st.container():
             badge = '<span class="age-badge">18+</span>' if row['Hassas_Icerik'] == "Evet" else ""
-            # Üst Kısım
+            # Film Kartı
             st.markdown(f'<div class="film-card">{badge}<div class="film-title">🎬 {row["İsim"]} ({row["Yıl"]})</div><div style="color:#888; font-size:0.85rem;">{row["Tür"]} | {row["Bilgi"]}</div></div>', unsafe_allow_html=True)
-            # Alt Kısım (Köşeleri düzeltilen checkbox kutusu)
+            # İzlendi Kutusu (Bağımsız ve Yuvarlak)
             check = st.checkbox("İzlendi", value=(row["İzlendi"] == "Evet"), key=f"c_{i}")
             if check != (row["İzlendi"] == "Evet"):
                 df.at[i, "İzlendi"] = "Evet" if check else "Hayır"
