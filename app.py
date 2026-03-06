@@ -31,7 +31,12 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- VERİ YÖNETİMİ ---
-TUR_LISTESI = ["Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", "Belgesel", "Animasyon", "Gerilim", "Macera", "Fantastik", "Biyografi"]
+# Eksik türler (Romantik, Gizem, Savaş, Tarih vb.) eklendi
+TUR_LISTESI = [
+    "Aksiyon", "Dram", "Komedi", "Korku", "Bilim Kurgu", "Suç", 
+    "Belgesel", "Animasyon", "Gerilim", "Macera", "Fantastik", 
+    "Biyografi", "Romantik", "Gizem", "Savaş", "Tarih", "Western"
+]
 
 def load_data():
     if os.path.exists("filmler.csv"):
@@ -68,7 +73,10 @@ if menu == "🔍 İçerik Ara":
     ara = st.text_input("Film adı...").strip().title()
     if ara:
         res = df[df["İsim"].str.contains(ara, na=False, case=False)]
-        st.dataframe(res[["İsim", "Yıl", "Tür", "Puan", "İzlendi"]], use_container_width=True)
+        if not res.empty:
+            st.dataframe(res[["İsim", "Yıl", "Tür", "Puan", "İzlendi"]], use_container_width=True)
+        else:
+            st.warning("Sonuç bulunamadı.")
 
 # --- 2. KOLEKSİYON & ÖNERİ ---
 elif menu == "📋 Koleksiyon & Öneri":
@@ -108,16 +116,14 @@ elif menu == "📋 Koleksiyon & Öneri":
                 save_data(df)
                 st.rerun()
 
-# --- 3. FİLM KAYDET (FORM DIŞINA ALINMIŞ PUANLAMA İLE KİLİT ÇÖZÜLDÜ) ---
+# --- 3. FİLM KAYDET ---
 elif menu == "🎥 Film Kaydet":
     if check_password():
         st.subheader("Yeni Film Ekle")
-        # Form yerine doğrudan widget kullanıyoruz ki Checkbox anında tepki versin
         isim = st.text_input("Film Adı").strip().title()
         turler = st.multiselect("Türler", options=TUR_LISTESI)
         yil = st.number_input("Yıl", 1950, 2030, 2026)
         
-        # Checkbox artık anında etkileşime geçecek
         puan_verilsin_mi = st.checkbox("Puan Ver")
         puan = st.slider("Senin Puanın", 0.0, 10.0, 5.0, step=0.5, disabled=not puan_verilsin_mi)
         
@@ -131,11 +137,11 @@ elif menu == "🎥 Film Kaydet":
                 yeni = pd.DataFrame([[isim, yil, tur_str, bilgi, "Hayır", "Evet" if hassas else "Hayır", final_puan]], columns=df.columns)
                 df = pd.concat([df, yeni], ignore_index=True)
                 save_data(df)
-                st.success("Başarıyla eklendi!")
+                st.success(f"{isim} başarıyla eklendi!")
                 st.rerun()
-            else: st.error("Film adı ve tür boş bırakılamaz!")
+            else: st.error("Film adı ve en az bir tür seçimi zorunludur!")
 
-# --- 4. KAYITLARI DÜZENLE (FORM DIŞINA ALINDI) ---
+# --- 4. KAYITLARI DÜZENLE ---
 elif menu == "✍️ Kayıtları Düzenle":
     if check_password():
         st.subheader("Güncelle")
@@ -147,20 +153,21 @@ elif menu == "✍️ Kayıtları Düzenle":
             n_isim = st.text_input("Film Adı", value=f_v["İsim"])
             n_turler = st.multiselect("Türleri Güncelle", options=TUR_LISTESI, default=str(f_v["Tür"]).split(", "))
             
-            # Düzenleme ekranında da kilit sorunu çözüldü
             n_p_ver = st.checkbox("Puan Ver / Güncelle", value=(float(f_v["Puan"]) > 0))
             n_puan = st.slider("Puan", 0.0, 10.0, float(f_v["Puan"]), step=0.5, disabled=not n_p_ver)
             
             n_bilgi = st.text_area("Notlar", value=f_v["Bilgi"])
-            sil = st.checkbox("⚠️ SİL")
+            sil = st.checkbox("⚠️ BU KAYDI SİL")
             
             if st.button("Değişiklikleri Kaydet"):
-                if sil: df = df.drop(idx)
+                if sil:
+                    df = df.drop(idx)
+                    st.warning("Kayıt silindi.")
                 else:
                     df.at[idx, "İsim"] = n_isim
                     df.at[idx, "Tür"] = ", ".join(n_turler)
                     df.at[idx, "Puan"] = n_puan if n_p_ver else 0.0
                     df.at[idx, "Bilgi"] = n_bilgi
+                    st.success("Güncellendi!")
                 save_data(df)
-                st.success("İşlem başarılı!")
                 st.rerun()
