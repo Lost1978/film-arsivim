@@ -100,48 +100,42 @@ elif menu == "📋 Koleksiyon & Öneri":
         with st.container():
             badge = '<span class="age-badge">18+</span>' if row['Hassas_Icerik'] == "Evet" else ""
             p_val = row['Puan']
-            # --- İSTEDİĞİN DEĞİŞİKLİK BURADA ---
             puan_display = f"⭐ {p_val}/10" if p_val > 0 else "⭐ ?/10"
-            
-            st.markdown(f'''
-                <div class="film-card">
-                    {badge}
-                    <div style="font-weight:bold;">🎬 {row["İsim"]} ({row["Yıl"]})</div>
-                    <div style="color:#888; font-size:0.85rem;">{row["Tür"]} | {row["Bilgi"]}</div>
-                    <div class="puan-text">{puan_display}</div>
-                </div>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'''<div class="film-card">{badge}<div style="font-weight:bold;">🎬 {row["İsim"]} ({row["Yıl"]})</div><div style="color:#888; font-size:0.85rem;">{row["Tür"]} | {row["Bilgi"]}</div><div class="puan-text">{puan_display}</div></div>''', unsafe_allow_html=True)
             check = st.checkbox("İzlendi", value=(row["İzlendi"] == "Evet"), key=f"c_{i}")
             if check != (row["İzlendi"] == "Evet"):
                 df.at[i, "İzlendi"] = "Evet" if check else "Hayır"
                 save_data(df)
                 st.rerun()
 
-# --- 3. FİLM KAYDET ---
+# --- 3. FİLM KAYDET (FORM DIŞINA ALINMIŞ PUANLAMA İLE KİLİT ÇÖZÜLDÜ) ---
 elif menu == "🎥 Film Kaydet":
     if check_password():
         st.subheader("Yeni Film Ekle")
-        with st.form("kayit"):
-            isim = st.text_input("Film Adı").strip().title()
-            turler = st.multiselect("Türler", options=TUR_LISTESI)
-            yil = st.number_input("Yıl", 1950, 2030, 2026)
-            puan_verilsin_mi = st.checkbox("Puan Ver")
-            puan = st.slider("Senin Puanın", 0.0, 10.0, 5.0, step=0.5, disabled=not puan_verilsin_mi)
-            bilgi = st.text_area("Not")
-            hassas = st.checkbox("18+ İçerik")
-            
-            if st.form_submit_button("Arşive Ekle"):
-                if isim and turler:
-                    final_puan = puan if puan_verilsin_mi else 0.0
-                    tur_str = ", ".join(turler)
-                    yeni = pd.DataFrame([[isim, yil, tur_str, bilgi, "Hayır", "Evet" if hassas else "Hayır", final_puan]], columns=df.columns)
-                    df = pd.concat([df, yeni], ignore_index=True)
-                    save_data(df)
-                    st.success("Başarıyla eklendi!")
-                    st.rerun()
-                else: st.error("Eksik bilgi!")
+        # Form yerine doğrudan widget kullanıyoruz ki Checkbox anında tepki versin
+        isim = st.text_input("Film Adı").strip().title()
+        turler = st.multiselect("Türler", options=TUR_LISTESI)
+        yil = st.number_input("Yıl", 1950, 2030, 2026)
+        
+        # Checkbox artık anında etkileşime geçecek
+        puan_verilsin_mi = st.checkbox("Puan Ver")
+        puan = st.slider("Senin Puanın", 0.0, 10.0, 5.0, step=0.5, disabled=not puan_verilsin_mi)
+        
+        bilgi = st.text_area("Not")
+        hassas = st.checkbox("18+ İçerik")
+        
+        if st.button("Arşive Ekle"):
+            if isim and turler:
+                final_puan = puan if puan_verilsin_mi else 0.0
+                tur_str = ", ".join(turler)
+                yeni = pd.DataFrame([[isim, yil, tur_str, bilgi, "Hayır", "Evet" if hassas else "Hayır", final_puan]], columns=df.columns)
+                df = pd.concat([df, yeni], ignore_index=True)
+                save_data(df)
+                st.success("Başarıyla eklendi!")
+                st.rerun()
+            else: st.error("Film adı ve tür boş bırakılamaz!")
 
-# --- 4. KAYITLARI DÜZENLE ---
+# --- 4. KAYITLARI DÜZENLE (FORM DIŞINA ALINDI) ---
 elif menu == "✍️ Kayıtları Düzenle":
     if check_password():
         st.subheader("Güncelle")
@@ -149,19 +143,24 @@ elif menu == "✍️ Kayıtları Düzenle":
             secilen_film = st.selectbox("Film Seç", options=df["İsim"].tolist())
             idx = df[df["İsim"] == secilen_film].index[0]
             f_v = df.iloc[idx]
-            mevcut_turler = str(f_v["Tür"]).split(", ")
             
-            with st.form("duzenle"):
-                n_isim = st.text_input("Film Adı", value=f_v["İsim"])
-                n_turler = st.multiselect("Türleri Güncelle", options=TUR_LISTESI, default=[t for t in mevcut_turler if t in TUR_LISTESI])
-                n_p_ver = st.checkbox("Puan Ver / Güncelle", value=(float(f_v["Puan"]) > 0))
-                n_puan = st.slider("Puan", 0.0, 10.0, float(f_v["Puan"]), step=0.5, disabled=not n_p_ver)
-                n_bilgi = st.text_area("Notlar", value=f_v["Bilgi"])
-                sil = st.checkbox("⚠️ SİL")
-                
-                if st.form_submit_button("Kaydet"):
-                    if sil: df = df.drop(idx)
-                    else:
-                        df.at[idx, "İsim"], df.at[idx, "Tür"], df.at[idx, "Puan"], df.at[idx, "Bilgi"] = n_isim, ", ".join(n_turler), (n_puan if n_p_ver else 0.0), n_bilgi
-                    save_data(df)
-                    st.rerun()
+            n_isim = st.text_input("Film Adı", value=f_v["İsim"])
+            n_turler = st.multiselect("Türleri Güncelle", options=TUR_LISTESI, default=str(f_v["Tür"]).split(", "))
+            
+            # Düzenleme ekranında da kilit sorunu çözüldü
+            n_p_ver = st.checkbox("Puan Ver / Güncelle", value=(float(f_v["Puan"]) > 0))
+            n_puan = st.slider("Puan", 0.0, 10.0, float(f_v["Puan"]), step=0.5, disabled=not n_p_ver)
+            
+            n_bilgi = st.text_area("Notlar", value=f_v["Bilgi"])
+            sil = st.checkbox("⚠️ SİL")
+            
+            if st.button("Değişiklikleri Kaydet"):
+                if sil: df = df.drop(idx)
+                else:
+                    df.at[idx, "İsim"] = n_isim
+                    df.at[idx, "Tür"] = ", ".join(n_turler)
+                    df.at[idx, "Puan"] = n_puan if n_p_ver else 0.0
+                    df.at[idx, "Bilgi"] = n_bilgi
+                save_data(df)
+                st.success("İşlem başarılı!")
+                st.rerun()
