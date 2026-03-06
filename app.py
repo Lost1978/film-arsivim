@@ -21,12 +21,10 @@ st.markdown("""
         position: relative;
     }
     
-    /* İzlenme Durumu Kutucuğu Style */
-    .status-container {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 10px;
+    /* İzlenme Durumu Yazısı ve Checkbox Düzeni */
+    .stCheckbox {
+        margin-top: -20px;
+        padding-bottom: 10px;
     }
 
     /* Hassas İçerik Etiketi */
@@ -38,6 +36,7 @@ st.markdown("""
         font-size: 0.75rem;
         font-weight: bold;
         display: inline-block;
+        margin-bottom: 10px;
     }
 
     /* Öneri Kutusu */
@@ -50,22 +49,18 @@ st.markdown("""
         margin: 20px 0;
     }
     
-    /* Sidebar Düzenleme */
+    /* Sidebar */
     [data-testid="stSidebar"] { background-color: #000000; }
     
     /* Butonlar */
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
+    .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; background-color: #ffffff; color: #000000; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- VERİ YÖNETİMİ ---
 def load_data():
     if os.path.exists("filmler.csv"):
-        df = pd.read_csv("filmler.csv")
-        # Eski verilerde Hassas_Icerik sütunu yoksa ekle
-        if "Hassas_Icerik" not in df.columns:
-            df["Hassas_Icerik"] = "Hayır"
-        return df
+        return pd.read_csv("filmler.csv")
     return pd.DataFrame(columns=["İsim", "Yıl", "Tür", "Bilgi", "İzlendi", "Hassas_Icerik"])
 
 def save_data(df):
@@ -77,7 +72,7 @@ df = load_data()
 st.markdown("<h1 style='text-align: center;'>🦅 EMRE'NİN FİLM ARŞİVİ</h1>", unsafe_allow_html=True)
 
 # --- MENÜ ---
-menu = st.sidebar.radio("MENÜ", ["🎥 Film Kaydet", "📋 Koleksiyon & Öneri", "🔍 Hızlı Sorgu"])
+menu = st.sidebar.radio("MENÜ", ["🎥 Film Kaydet", "📋 Koleksiyon & Öneri"])
 
 # --- 1. FİLM KAYDETME ---
 if menu == "🎥 Film Kaydet":
@@ -97,83 +92,67 @@ if menu == "🎥 Film Kaydet":
                 save_data(df)
                 st.success("Film başarıyla eklendi!")
                 st.rerun()
-            else:
-                st.error("Film adı girmelisin!")
 
-# --- 2. KOLEKSİYON & ÖNERİ (YENİLENEN KISIM) ---
+# --- 2. KOLEKSİYON & ÖNERİ ---
 elif menu == "📋 Koleksiyon & Öneri":
-    st.subheader("Koleksiyon Yönetimi ve Öneriler")
-    
-    # --- FİLTRELEME ALANI ---
+    # --- FİLTRELEME ---
     with st.expander("🔍 Filtreleme Seçenekleri", expanded=False):
         f_col1, f_col2 = st.columns(2)
         secilen_tur = f_col1.multiselect("Tür Seç", options=df["Tür"].unique())
-        secilen_yil = f_col2.slider("Yıl Aralığı", int(df["Yıl"].min() if not df.empty else 1950), 2026, (1950, 2026))
-        secilen_hassas = st.radio("Hassas İçerik Filtresi", ["Hepsi", "Sadece Temizler", "Sadece Hassaslar"], horizontal=True)
-        secilen_izlendi = st.radio("İzlenme Durumu", ["Hepsi", "Sadece İzlenmeyenler", "Sadece İzlenenler"], horizontal=True)
+        secilen_yil = f_col2.slider("Yıl Aralığı", 1950, 2026, (1950, 2026))
+        secilen_hassas = st.radio("Hassas İçerik", ["Hepsi", "Temiz", "18+"], horizontal=True)
+        secilen_izlendi = st.radio("Durum", ["Hepsi", "İzlenmeyenler", "İzlenenler"], horizontal=True)
 
-    # Filtre Uygulama
+    # Filtreleme Mantığı
     filtered_df = df.copy()
     if secilen_tur:
         filtered_df = filtered_df[filtered_df["Tür"].isin(secilen_tur)]
     filtered_df = filtered_df[(filtered_df["Yıl"] >= secilen_yil[0]) & (filtered_df["Yıl"] <= secilen_yil[1])]
     
-    if secilen_hassas == "Sadece Temizler":
-        filtered_df = filtered_df[filtered_df["Hassas_Icerik"] == "Hayır"]
-    elif secilen_hassas == "Sadece Hassaslar":
-        filtered_df = filtered_df[filtered_df["Hassas_Icerik"] == "Evet"]
+    if secilen_hassas == "Temiz": filtered_df = filtered_df[filtered_df["Hassas_Icerik"] == "Hayır"]
+    elif secilen_hassas == "18+": filtered_df = filtered_df[filtered_df["Hassas_Icerik"] == "Evet"]
         
-    if secilen_izlendi == "Sadece İzlenmeyenler":
-        filtered_df = filtered_df[filtered_df["İzlendi"] == "Hayır"]
-    elif secilen_izlendi == "Sadece İzlenenler":
-        filtered_df = filtered_df[filtered_df["İzlendi"] == "Evet"]
+    if secilen_izlendi == "İzlenmeyenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Hayır"]
+    elif secilen_izlendi == "İzlenenler": filtered_df = filtered_df[filtered_df["İzlendi"] == "Evet"]
 
     # --- FİLM ÖNER BUTONU ---
-    st.markdown("---")
     if st.button("🎲 BANA BİR FİLM ÖNER"):
         izlenmemisler = filtered_df[filtered_df["İzlendi"] == "Hayır"]
         if not izlenmemisler.empty:
             oneri = izlenmemisler.sample(n=1).iloc[0]
             st.markdown(f"""
             <div class="suggest-box">
-                <h2 style='color: white; margin:0;'>✨ Önerilen Film ✨</h2>
+                <h2 style='color: white; margin:0;'>✨ Önerilen ✨</h2>
                 <h1 style='color: #FFFFFF;'>{oneri['İsim']} ({oneri['Yıl']})</h1>
-                <p>Tür: {oneri['Tür']} | {oneri['Bilgi']}</p>
             </div>
             """, unsafe_allow_html=True)
         else:
-            st.info("Filtrelere uygun izlenmemiş film bulamadım Emre.")
+            st.info("Kriterlere uygun izlenmemiş film yok.")
 
-    # --- KOLEKSİYON LİSTESİ (TABLO YERİNE KART SİSTEMİ) ---
-    st.write(f"**Toplam {len(filtered_df)} film listeleniyor.**")
+    st.write(f"**{len(filtered_df)} Film Bulundu**")
     
+    # --- LİSTELEME ---
     for i, row in filtered_df.iterrows():
+        # Her film için bir 'container' açıyoruz ki checkbox kartın içinde kalsın
         with st.container():
-            # Kart Görünümü
-            is_checked = True if row["İzlendi"] == "Evet" else False
-            
+            # Kartın üst kısmını (HTML) çiziyoruz
             st.markdown(f"""
             <div class="film-card">
-                <span style="font-size: 1.2rem; font-weight: bold;">🎬 {row['İsim']} ({row['Yıl']})</span>
-                <p style="color: #bbb; margin-bottom: 5px;">{row['Tür']} | {row['Bilgi']}</p>
-                {f'<div class="warning-badge">⚠️ 18+ CONTENT</div>' if row['Hassas_Icerik'] == "Evet" else ""}
-            </div>
+                {f'<div class="warning-badge">⚠️ 18+</div>' if row['Hassas_Icerik'] == "Evet" else ""}
+                <div style="font-size: 1.2rem; font-weight: bold; color: white;">🎬 {row['İsim']} ({row['Yıl']})</div>
+                <div style="color: #888; font-size: 0.9rem; margin-bottom: 10px;">{row['Tür']} | {row['Bilgi']}</div>
             """, unsafe_allow_html=True)
             
-            # İzlenme Durumu Düzenleme (Kutucuklu)
-            check = st.checkbox(f"İzlendi İşaretle", value=is_checked, key=f"check_{i}")
+            # Kartın içindeki Checkbox
+            is_checked = (row["İzlendi"] == "Evet")
+            check = st.checkbox("İzlendi", value=is_checked, key=f"c_{i}")
             
-            # Değişiklik varsa kaydet
-            current_status = "Evet" if check else "Hayır"
-            if current_status != row["İzlendi"]:
-                df.at[i, "İzlendi"] = current_status
+            # Kartın HTML kapanışını yapıyoruz
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Veri Güncelleme
+            yeni_durum = "Evet" if check else "Hayır"
+            if yeni_durum != row["İzlendi"]:
+                df.at[i, "İzlendi"] = yeni_durum
                 save_data(df)
                 st.rerun()
-
-# --- 3. HIZLI SORGU ---
-elif menu == "🔍 Hızlı Sorgu":
-    st.subheader("İsimle Hızlı Arama")
-    ara = st.text_input("Film adı girin...").strip().title()
-    if ara:
-        res = df[df["İsim"].str.contains(ara, na=False)]
-        st.write(res)
